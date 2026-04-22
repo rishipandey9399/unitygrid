@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+:root {
+  --dark-coffee: #493129;
+  --muted-plum: #8b597b;
+  --dusty-rose: #efa3a0;
+  --peach-cream: #ffdec7;
+  --warm-vanilla: #ffeedb;
+}
+
+@theme {
+  --color-coffee: #493129;
+  --color-plum: #8b597b;
+  --color-rose: #efa3a0;
+  --color-peach: #ffdec7;
+  --color-vanilla: #ffeedb;
+  --font-sketch: 'Caveat', cursive;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--warm-vanilla);
+  color: var(--dark-coffee);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sketched border utility */
+.border-sketch {
+  border: 2.5px solid var(--dark-coffee);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0px var(--dark-coffee);
+}
+
+.border-sketch-plum {
+  border: 2.5px solid var(--muted-plum);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0px var(--muted-plum);
+}
+
+.border-sketch-rose {
+  border: 2.5px solid var(--dusty-rose);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0px var(--dusty-rose);
+}
+
+/* Button sketch style */
+.btn-sketch {
+  border: 2.5px solid var(--dark-coffee);
+  border-radius: 10px;
+  box-shadow: 3px 3px 0px var(--dark-coffee);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-sketch:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px var(--dark-coffee);
+}
+
+.btn-sketch:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px var(--dark-coffee);
+}
+
+/* Card hover lift */
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 6px 8px 0px var(--dark-coffee);
+}
+
+/* Horizontal scroll container */
+.scroll-container {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-plum) var(--peach-cream);
+}
+
+.scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: var(--peach-cream);
+  border-radius: 10px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: var(--muted-plum);
+  border-radius: 10px;
+}
+
+/* Fade in animation */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up {
+  animation: fadeUp 0.6s ease forwards;
+}
+
+/* Scroll-triggered fade-in */
+.fade-in-scroll {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+
+.fade-in-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Sketch underline */
+.sketch-underline {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--dusty-rose);
+  text-underline-offset: 4px;
+}
