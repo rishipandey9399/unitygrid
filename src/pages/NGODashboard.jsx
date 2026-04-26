@@ -72,6 +72,8 @@ function DriveCard({ drive, onToggle }) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function NGODashboard() {
   const [drives, setDrives] = useState([])
+  const [events, setEvents] = useState([])
+  const [view, setView] = useState('drives') // 'drives' or 'events'
   const [filter, setFilter] = useState('All')
   const [dragging, setDragging] = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
@@ -93,8 +95,23 @@ export default function NGODashboard() {
     }
   }
 
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch('/api/ngo/events', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setEvents(data)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   useEffect(() => {
     fetchDrives()
+    fetchEvents()
   }, [])
 
   const toggle = async (id) => {
@@ -127,6 +144,39 @@ export default function NGODashboard() {
         body: JSON.stringify({ title, location, date, desc: 'A newly created drive', tags: ['Community'], total: 10, hours: 4 })
       })
       if (res.ok) fetchDrives()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleNewEvent = async () => {
+    const title = prompt('Enter event title (e.g., Diwali Party):')
+    if (!title) return
+    const category = prompt('Enter category (e.g., Social, Education):') || 'Social'
+    const location = prompt('Enter location:') || 'Community Hall'
+    const date = prompt('Enter date (e.g., Nov 1):') || 'TBD'
+    const time = prompt('Enter time (e.g., 6:00 PM):') || 'Evening'
+    
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ 
+          title, 
+          category, 
+          location, 
+          date, 
+          time, 
+          desc: 'A community event for volunteers', 
+          tags: [category, 'Community'], 
+          slots: 50,
+          color: '#493129' 
+        })
+      })
+      if (res.ok) fetchEvents()
     } catch (err) {
       console.error(err)
     }
@@ -210,31 +260,56 @@ export default function NGODashboard() {
         {/* Content grid */}
         <div className="flex flex-col lg:flex-row gap-6">
 
-          {/* Left — Drives list */}
+          {/* Left — List */}
           <div className="flex-1">
-            {/* Filter bar */}
+            {/* Tab/Filter bar */}
             <div className="flex items-center justify-between mb-5">
               <div className="flex border-2 border-[#493129] rounded-xl overflow-hidden">
-                {['All', 'Public', 'Private'].map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`px-4 py-1.5 text-sm font-semibold transition-colors ${filter === f ? 'bg-[#493129] text-white' : 'bg-white text-[#493129] hover:bg-[#ffdec7]'}`}
-                  >
-                    {f}
-                  </button>
-                ))}
+                <button
+                  onClick={() => setView('drives')}
+                  className={`px-4 py-1.5 text-sm font-semibold transition-colors ${view === 'drives' ? 'bg-[#493129] text-white' : 'bg-white text-[#493129] hover:bg-[#ffdec7]'}`}
+                >
+                  Drives
+                </button>
+                <button
+                  onClick={() => setView('events')}
+                  className={`px-4 py-1.5 text-sm font-semibold transition-colors ${view === 'events' ? 'bg-[#493129] text-white' : 'bg-white text-[#493129] hover:bg-[#ffdec7]'}`}
+                >
+                  Events
+                </button>
               </div>
-              <button onClick={handleNewDrive} className="btn-sketch px-4 py-1.5 text-sm font-bold bg-[#efa3a0] text-white flex items-center gap-1">
-                <Plus size={15} /> New
+              <button 
+                onClick={view === 'drives' ? handleNewDrive : handleNewEvent} 
+                className="btn-sketch px-4 py-1.5 text-sm font-bold bg-[#efa3a0] text-white flex items-center gap-1"
+              >
+                <Plus size={15} /> New {view === 'drives' ? 'Drive' : 'Event'}
               </button>
             </div>
 
-            <h2 className="font-bold text-xl text-[#493129] mb-4">Drives</h2>
+            <h2 className="font-bold text-xl text-[#493129] mb-4 capitalize">{view}</h2>
 
-            {filtered.map(d => (
-              <DriveCard key={d.id} drive={d} onToggle={() => toggle(d.id)} />
-            ))}
+            {view === 'drives' ? (
+              filtered.map(d => (
+                <DriveCard key={d.id} drive={d} onToggle={() => toggle(d.id)} />
+              ))
+            ) : (
+              events.map(e => (
+                <div key={e.id} className="border-2 border-[#493129] rounded-xl p-4 mb-3 bg-white shadow-[3px_3px_0px_#493129]">
+                  <div className="flex items-start justify-between mb-2">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white bg-[#8b597b]">
+                      {e.category.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-gray-400">{e.date} · {e.time}</span>
+                  </div>
+                  <h3 className="font-bold text-[#493129] text-base">{e.title}</h3>
+                  <p className="text-sm text-gray-500 mt-1 mb-3">{e.desc}</p>
+                  <div className="flex items-center gap-4 text-xs text-gray-400">
+                    <span className="flex items-center gap-1"><MapPin size={11} /> {e.location}</span>
+                    <span className="flex items-center gap-1"><Users size={11} /> {e.filled}/{e.slots}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Right sidebar */}

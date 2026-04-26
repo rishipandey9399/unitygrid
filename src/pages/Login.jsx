@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { GoogleLogin } from '@react-oauth/google'
 
 const BG_IMAGE = "https://images.unsplash.com/photo-1775986996698-f795f50c1754?crop=entropy&cs=srgb&fm=jpg&w=900&q=80"
 
@@ -8,34 +9,64 @@ export default function Login({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-
-  const DEMO_ACCOUNTS = [
-    { email: 'admin@greenearth.org', password: 'password123', role: 'ngo' },
-    { email: 'priya.sharma@demo.unitydrive.org', password: 'password123', role: 'volunteer' },
-    { email: 'superadmin@unitydrive.org', password: 'password123', role: 'admin' },
-  ]
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    
+    setLoading(true)
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       })
-      
+
       const data = await res.json()
-      
+
       if (res.ok) {
         onLogin(data)
         navigate(`/${data.user.role}`)
       } else {
         setError(data.error || 'Invalid credentials.')
       }
-    } catch (err) {
+    } catch {
       setError('Failed to connect to server.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential })
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Google sign-in failed.')
+        return
+      }
+
+      // Save auth state
+      onLogin(data)
+
+      if (data.needs_profile) {
+        // New Google user — send to signup page's profile step
+        navigate('/signup?google=1&token=' + data.token + '&name=' + encodeURIComponent(data.user.name))
+      } else {
+        navigate(`/${data.user.role}`)
+      }
+    } catch {
+      setError('Failed to connect to server.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -46,9 +77,7 @@ export default function Login({ onLogin }) {
         className="hidden md:flex w-1/2 relative items-end p-12"
         style={{ backgroundImage: `url('${BG_IMAGE}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       >
-        {/* Overlay */}
         <div className="absolute inset-0 bg-[#8b597b]/30" />
-
         <div className="relative z-10 text-white max-w-sm">
           <p className="font-['Caveat'] text-xl text-[#ffdec7] mb-2 italic">welcome back —</p>
           <h1 className="font-bold text-5xl leading-tight mb-4">
@@ -74,8 +103,28 @@ export default function Login({ onLogin }) {
             </Link>
           </p>
 
+          {/* Google Sign-In */}
+          <div className="mb-6">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Google sign-in was cancelled or failed.')}
+              theme="outline"
+              size="large"
+              width="100%"
+              text="signin_with"
+              shape="rectangular"
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex-1 h-px bg-[#493129]/20" />
+            <span className="text-xs text-gray-400 font-medium tracking-widest">OR</span>
+            <div className="flex-1 h-px bg-[#493129]/20" />
+          </div>
+
+          {/* Email/Password Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email */}
             <div>
               <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">EMAIL</label>
               <input
@@ -88,7 +137,6 @@ export default function Login({ onLogin }) {
               />
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">PASSWORD</label>
               <input
@@ -105,12 +153,12 @@ export default function Login({ onLogin }) {
               <p className="text-xs text-red-500 font-medium">{error}</p>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
-              className="btn-sketch px-6 py-2.5 text-sm font-bold bg-[#efa3a0] text-white tracking-widest"
+              disabled={loading}
+              className="btn-sketch px-6 py-2.5 text-sm font-bold bg-[#efa3a0] text-white tracking-widest disabled:opacity-60"
             >
-              SIGN IN
+              {loading ? 'SIGNING IN...' : 'SIGN IN'}
             </button>
           </form>
 

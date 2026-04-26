@@ -8,9 +8,11 @@ class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
-    role = db.Column(db.String(20), nullable=False) # 'volunteer', 'ngo', 'admin'
-    
+    password_hash = db.Column(db.String(256), nullable=True)  # nullable for Google-only accounts
+    google_id = db.Column(db.String(128), unique=True, nullable=True)  # Google OAuth sub
+    role = db.Column(db.String(20), nullable=True)  # nullable until profile is completed after Google signup
+    profile_complete = db.Column(db.Boolean, default=False)  # False for new Google users pending profile step
+
     # Profile Info
     name = db.Column(db.String(100), nullable=False)
     
@@ -55,3 +57,33 @@ class Enrollment(db.Model):
     # Relationships
     volunteer = db.relationship('User', backref=db.backref('enrollments', lazy=True))
     drive = db.relationship('Drive', backref=db.backref('enrollments', lazy=True))
+
+class Event(db.Model):
+    __tablename__ = 'events'
+    id = db.Column(db.Integer, primary_key=True)
+    ngo_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False) # e.g., 'Education', 'Social', 'Health'
+    date = db.Column(db.String(50), nullable=False)
+    time = db.Column(db.String(50), nullable=False)
+    location = db.Column(db.String(100), nullable=False)
+    slots = db.Column(db.Integer, default=50)
+    tags = db.Column(db.String(200)) # comma separated
+    color = db.Column(db.String(20)) # hex color
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    ngo = db.relationship('User', backref=db.backref('events_created', lazy=True))
+
+class EventEnrollment(db.Model):
+    __tablename__ = 'event_enrollments'
+    id = db.Column(db.Integer, primary_key=True)
+    volunteer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    status = db.Column(db.String(20), default='registered')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    volunteer = db.relationship('User', backref=db.backref('event_enrollments', lazy=True))
+    event = db.relationship('Event', backref=db.backref('event_enrollments', lazy=True))

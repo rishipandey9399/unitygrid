@@ -13,3 +13,4 @@ streamlit
 gunicorn
 flask-sqlalchemy
 pyjwt
+google-auth

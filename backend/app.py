@@ -4,9 +4,11 @@ import jwt
 from functools import wraps
 from flask import Flask, request, jsonify, render_template_string, send_from_directory
 from werkzeug.utils import secure_filename
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 from agent import agent_executor
 from matching import match_engine, ngo_match_engine, vol_collection
-from models import db, User, Drive, Enrollment
+from models import db, User, Drive, Enrollment, Event, EventEnrollment
 
 app = Flask(__name__, static_folder='../dist', static_url_path='/')
 # Allow larger file uploads
@@ -14,9 +16,11 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 UPLOAD_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 # --- Database & Auth Config ---
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-super-secret-key-123')
+app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')
 db.init_app(app)
 
 with app.app_context():
@@ -293,6 +297,110 @@ def login():
         }
     })
 
+@app.route('/api/auth/google', methods=['POST'])
+def google_auth():
+    """Verify a Google ID token and log in or create the user."""
+    data = request.json
+    if not data or not data.get('credential'):
+        return jsonify({"error": "Missing Google credential"}), 400
+
+    client_id = app.config.get('GOOGLE_CLIENT_ID', '')
+    if not client_id:
+        return jsonify({"error": "Google OAuth is not configured on the server"}), 500
+
+    try:
+        # Verify the token with Google's servers
+        id_info = google_id_token.verify_oauth2_token(
+            data['credential'],
+            google_requests.Request(),
+            client_id
+        )
+    except ValueError as e:
+        return jsonify({"error": f"Invalid Google token: {str(e)}"}), 401
+
+    google_sub = id_info.get('sub')       # unique Google user ID
+    email      = id_info.get('email', '')
+    name       = id_info.get('name', '')
+
+    # --- Find or create user ---
+    user = User.query.filter_by(google_id=google_sub).first()
+    is_new_user = False
+
+    if not user:
+        # Check if they already registered with email/password
+        user = User.query.filter_by(email=email).first()
+        if user:
+            # Link Google to existing account
+            user.google_id = google_sub
+            db.session.commit()
+        else:
+            # Brand-new user — create without role (profile step pending)
+            user = User(
+                email=email,
+                name=name,
+                google_id=google_sub,
+                role=None,
+                profile_complete=False
+            )
+            db.session.add(user)
+            db.session.commit()
+            is_new_user = True
+
+    needs_profile = is_new_user or not user.profile_complete
+
+    token = jwt.encode({
+        'user_id': user.id,
+        'role': user.role,
+        'exp': time.time() + (24 * 60 * 60)
+    }, app.config['SECRET_KEY'], algorithm="HS256")
+
+    return jsonify({
+        "token": token,
+        "needs_profile": needs_profile,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role
+        }
+    }), 200
+
+@app.route('/api/auth/complete-profile', methods=['POST'])
+@token_required
+def complete_profile(current_user):
+    """Called after a Google sign-up to save the user's chosen role and profile details."""
+    data = request.json
+    if not data or not data.get('role'):
+        return jsonify({"error": "Role is required"}), 400
+
+    role = data['role']
+    if role not in ('volunteer', 'ngo'):
+        return jsonify({"error": "Invalid role"}), 400
+
+    current_user.role = role
+    current_user.profile_complete = True
+
+    if role == 'ngo':
+        current_user.ngo_name    = data.get('ngo_name')
+        current_user.ngo_reg_id  = data.get('ngo_reg_id')
+        current_user.ngo_details = data.get('ngo_details')
+    elif role == 'volunteer':
+        skills      = data.get('skills', '')
+        preferences = data.get('preferences', '')
+        area        = data.get('area', 'Unknown')
+        bio = f"Hi, I am {current_user.name}. I am skilled in {skills}."
+        if preferences:
+            bio += f" Preferred drives: {preferences}"
+        # Register in ChromaDB for AI matching
+        vol_collection.upsert(
+            documents=[bio],
+            metadatas=[{"name": current_user.name, "area": area, "lat": 23.2505, "lon": 77.4667, "user_id": current_user.id}],
+            ids=[f"vol_web_{current_user.id}"]
+        )
+
+    db.session.commit()
+    return jsonify({"success": True, "role": current_user.role})
+
 # --- Drive Endpoints ---
 @app.route('/api/drives', methods=['GET'])
 def get_drives():
@@ -419,6 +527,101 @@ def get_volunteer_stats(current_user):
         "drives": drive_count,
         "enrolled_ids": enrolled_drive_ids
     })
+
+# --- Event Endpoints ---
+@app.route('/api/events', methods=['GET'])
+def get_events():
+    events = Event.query.all()
+    result = []
+    for e in events:
+        enrolled_count = EventEnrollment.query.filter_by(event_id=e.id).count()
+        result.append({
+            "id": e.id,
+            "org": e.ngo.ngo_name or e.ngo.name,
+            "category": e.category,
+            "title": e.title,
+            "desc": e.description,
+            "date": e.date,
+            "time": e.time,
+            "location": e.location,
+            "slots": e.slots,
+            "filled": enrolled_count,
+            "tags": e.tags.split(',') if e.tags else [],
+            "color": e.color
+        })
+    return jsonify(result)
+
+@app.route('/api/ngo/events', methods=['GET'])
+@token_required
+def get_ngo_events(current_user):
+    if current_user.role != 'ngo':
+        return jsonify({"error": "Unauthorized"}), 403
+    events = Event.query.filter_by(ngo_id=current_user.id).all()
+    result = []
+    for e in events:
+        enrolled_count = EventEnrollment.query.filter_by(event_id=e.id).count()
+        result.append({
+            "id": e.id,
+            "title": e.title,
+            "desc": e.description,
+            "category": e.category,
+            "date": e.date,
+            "time": e.time,
+            "location": e.location,
+            "slots": e.slots,
+            "filled": enrolled_count,
+            "tags": e.tags.split(',') if e.tags else [],
+            "color": e.color
+        })
+    return jsonify(result)
+
+@app.route('/api/events', methods=['POST'])
+@token_required
+def create_event(current_user):
+    if current_user.role != 'ngo':
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.json
+    new_event = Event(
+        ngo_id=current_user.id,
+        title=data['title'],
+        description=data.get('desc', ''),
+        category=data.get('category', 'Social'),
+        date=data['date'],
+        time=data['time'],
+        location=data['location'],
+        slots=int(data.get('slots', 50)),
+        tags=','.join(data.get('tags', [])),
+        color=data.get('color', '#493129')
+    )
+    db.session.add(new_event)
+    db.session.commit()
+    return jsonify({"success": True, "id": new_event.id})
+
+@app.route('/api/events/<int:event_id>/register', methods=['POST'])
+@token_required
+def register_event(current_user, event_id):
+    if current_user.role != 'volunteer':
+        return jsonify({"error": "Only volunteers can register for events"}), 403
+    event = Event.query.get_or_404(event_id)
+    existing = EventEnrollment.query.filter_by(volunteer_id=current_user.id, event_id=event.id).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+        return jsonify({"success": True, "enrolled": False})
+    else:
+        new_enrollment = EventEnrollment(volunteer_id=current_user.id, event_id=event.id)
+        db.session.add(new_enrollment)
+        db.session.commit()
+        return jsonify({"success": True, "enrolled": True})
+
+@app.route('/api/volunteer/events', methods=['GET'])
+@token_required
+def get_volunteer_events(current_user):
+    if current_user.role != 'volunteer':
+        return jsonify({"error": "Unauthorized"}), 403
+    enrollments = EventEnrollment.query.filter_by(volunteer_id=current_user.id).all()
+    enrolled_ids = [e.event_id for e in enrollments]
+    return jsonify({"enrolled_ids": enrolled_ids})
 
 if __name__ == '__main__':
     # Start the server
