@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MapPin, Clock, Users, Calendar, ChevronRight, Zap, Heart } from 'lucide-react'
 
 // ── Mock drive data ──────────────────────────────────────────────────────────
@@ -154,11 +154,42 @@ function DriveCard({ drive }) {
 }
 
 export default function Drives() {
-  const [tab, setTab] = useState('today')
-  const filtered = ALL_DRIVES.filter(d => d.status === tab)
+  const [drives, setDrives] = useState([])
+  const [tab, setTab] = useState('upcoming')
 
-  const todayCount = ALL_DRIVES.filter(d => d.status === 'today').length
-  const upcomingCount = ALL_DRIVES.filter(d => d.status === 'upcoming').length
+  const fetchDrives = async () => {
+    try {
+      const res = await fetch('/api/drives')
+      if (res.ok) {
+        const data = await res.json()
+        const mapped = data.map(d => ({
+          id: d.id,
+          title: d.title,
+          ngo: d.ngo_name || 'NGO',
+          category: d.tags && d.tags.length > 0 ? d.tags[0] : 'Community',
+          date: d.date,
+          status: 'upcoming', // default mapped
+          location: d.location,
+          volunteers: d.slots,
+          slots: d.total,
+          time: `${d.hours} hours`,
+          desc: d.description
+        }))
+        setDrives(mapped)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  useEffect(() => {
+    fetchDrives()
+  }, [])
+
+  const filtered = drives.filter(d => d.status === tab)
+
+  const todayCount = drives.filter(d => d.status === 'today').length
+  const upcomingCount = drives.filter(d => d.status === 'upcoming').length
 
   return (
     <div className="min-h-screen bg-[#ffeedb] py-12">
@@ -188,7 +219,7 @@ export default function Drives() {
             <p className="text-xs text-gray-500">Upcoming</p>
           </div>
           <div className="border-sketch bg-white px-6 py-3 rounded-xl text-center">
-            <p className="text-2xl font-bold text-[#efa3a0]">{ALL_DRIVES.length}</p>
+            <p className="text-2xl font-bold text-[#efa3a0]">{drives.length}</p>
             <p className="text-xs text-gray-500">Total Drives</p>
           </div>
         </div>

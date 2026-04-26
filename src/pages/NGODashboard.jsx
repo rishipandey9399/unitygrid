@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   Calendar, Eye, EyeOff, Plus, Upload, MapPin,
   Users, Clock, TrendingUp, Sparkles, ChevronRight,
@@ -6,39 +6,6 @@ import {
 } from 'lucide-react'
 
 // ── Mock data ────────────────────────────────────────────────────────────────
-const initDrives = [
-  {
-    id: 1, visibility: true, badge: 'Public', badgeColor: '#2e6b4f',
-    date: 'Sat, Apr 25', title: 'Saturday Reading Circle',
-    desc: 'Read with kids at the community library. Hindi/English/Kannada welcome.',
-    tags: ['Teaching', 'Translation'], location: 'Indiranagar', slots: 7, total: 12, hours: 4, fill: 58,
-  },
-  {
-    id: 2, visibility: true, badge: 'Public', badgeColor: '#2e6b4f',
-    date: 'Wed, Apr 29', title: 'Mobile Health Camp',
-    desc: 'Set up a free check-up camp. Doctors, nurses, and runners needed.',
-    tags: ['Medical', 'Logistics'], location: 'Hebbal', slots: 11, total: 20, hours: 6, fill: 55,
-  },
-  {
-    id: 3, visibility: true, badge: 'Public', badgeColor: '#2e6b4f',
-    date: 'Wed, Apr 22', title: 'Code with Teens',
-    desc: 'Intro to Python session for high-schoolers from govt. schools.',
-    tags: ['Tech', 'Teaching'], location: 'Domlur', slots: 3, total: 8, hours: 3, fill: 38,
-  },
-  {
-    id: 4, visibility: true, badge: 'Public', badgeColor: '#2e6b4f',
-    date: 'Sat, May 2', title: 'Lake Cleanup Drive',
-    desc: 'Cleanup, awareness walk, and a quiet picnic to close.',
-    tags: ['Logistics', 'Construction'], location: 'Bellandur', slots: 22, total: 40, hours: 5, fill: 55,
-  },
-  {
-    id: 5, visibility: false, badge: 'Private', badgeColor: '#c0392b',
-    date: 'Sat, May 9', title: 'Donor Gala — Internal Crew',
-    desc: 'Private fundraising event. Invite-only volunteers.',
-    tags: ['Fundraising', 'Cooking'], location: 'MG Road', slots: 4, total: 10, hours: 6, fill: 40,
-  },
-]
-
 const matchedVolunteers = [
   { initials: 'AP', name: 'Aanya P.', skill: 'Teaching', score: 92, color: '#efa3a0' },
   { initials: 'RM', name: 'Rohan M.', skill: 'Logistics', score: 87, color: '#8b597b' },
@@ -68,9 +35,9 @@ function DriveCard({ drive, onToggle }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span
             className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white"
-            style={{ background: drive.badgeColor }}
+            style={{ background: drive.visibility ? '#2e6b4f' : '#c0392b' }}
           >
-            {drive.badge}
+            {drive.visibility ? 'Public' : 'Private'}
           </span>
           <span className="text-xs text-gray-400">{drive.date}</span>
         </div>
@@ -104,19 +71,66 @@ function DriveCard({ drive, onToggle }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function NGODashboard() {
-  const [drives, setDrives] = useState(initDrives)
+  const [drives, setDrives] = useState([])
   const [filter, setFilter] = useState('All')
   const [dragging, setDragging] = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [ocrResult, setOcrResult] = useState(null)
   const fileRef = useRef()
 
-  const toggle = (id) => setDrives(prev =>
-    prev.map(d => d.id === id ? {
-      ...d, visibility: !d.visibility,
-      badge: !d.visibility ? 'Public' : 'Private',
-      badgeColor: !d.visibility ? '#2e6b4f' : '#c0392b',
-    } : d)
-  )
+  const fetchDrives = async () => {
+    try {
+      const res = await fetch('/api/ngo/drives', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDrives(data)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  useEffect(() => {
+    fetchDrives()
+  }, [])
+
+  const toggle = async (id) => {
+    try {
+      const res = await fetch(`/api/drives/${id}/toggle`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (res.ok) {
+        fetchDrives() // Refresh the list
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleNewDrive = async () => {
+    const title = prompt('Enter drive title:')
+    if (!title) return
+    const location = prompt('Enter location (e.g. Indiranagar):') || 'Bhopal'
+    const date = prompt('Enter date (e.g. Apr 25):') || 'Soon'
+    
+    try {
+      const res = await fetch('/api/drives', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ title, location, date, desc: 'A newly created drive', tags: ['Community'], total: 10, hours: 4 })
+      })
+      if (res.ok) fetchDrives()
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const filtered = drives.filter(d =>
     filter === 'All' ? true : filter === 'Public' ? d.visibility : !d.visibility
@@ -130,10 +144,34 @@ export default function NGODashboard() {
     hours: 273,
   }
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault(); setDragging(false)
-    const f = e.dataTransfer.files[0]
-    if (f) setUploadedFile(f.name)
+    const f = e.dataTransfer?.files[0] || e.target?.files[0]
+    if (!f) return
+
+    setUploadedFile(f.name)
+    setIsProcessing(true)
+    setOcrResult(null)
+
+    const formData = new FormData()
+    formData.append('file', f)
+
+    try {
+      const res = await fetch('/api/ocr-volunteer', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setOcrResult('Success! AI registered the volunteer.')
+      } else {
+        setOcrResult('AI Processing Failed: ' + data.error)
+      }
+    } catch (err) {
+      setOcrResult('Upload error: ' + err.message)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -187,7 +225,7 @@ export default function NGODashboard() {
                   </button>
                 ))}
               </div>
-              <button className="btn-sketch px-4 py-1.5 text-sm font-bold bg-[#efa3a0] text-white flex items-center gap-1">
+              <button onClick={handleNewDrive} className="btn-sketch px-4 py-1.5 text-sm font-bold bg-[#efa3a0] text-white flex items-center gap-1">
                 <Plus size={15} /> New
               </button>
             </div>
@@ -202,13 +240,13 @@ export default function NGODashboard() {
           {/* Right sidebar */}
           <div className="w-full lg:w-72 flex flex-col gap-4">
 
-            {/* Data import */}
+            {/* Data import with AI OCR */}
             <div className="border-sketch bg-white p-5 rounded-xl">
               <div className="flex items-center gap-2 mb-1">
                 <FileUp size={16} className="text-[#efa3a0]" />
-                <h3 className="font-bold text-[#493129]">Data import</h3>
+                <h3 className="font-bold text-[#493129]">Data import (AI OCR)</h3>
               </div>
-              <p className="text-xs text-gray-400 mb-4">Bring your existing volunteer roster or drives from a CSV/Excel file.</p>
+              <p className="text-xs text-gray-400 mb-4">Upload handwritten volunteer forms. AI will extract skills and auto-register them to the database.</p>
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true) }}
                 onDragLeave={() => setDragging(false)}
@@ -216,18 +254,34 @@ export default function NGODashboard() {
                 className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${dragging ? 'border-[#efa3a0] bg-[#fff3ee]' : 'border-gray-300'}`}
                 onClick={() => fileRef.current.click()}
               >
-                <Upload size={24} className="mx-auto text-gray-400 mb-2" />
-                <p className="text-sm text-gray-400 font-['Caveat'] text-base">drop a file here</p>
-                <p className="text-xs text-gray-300 mt-1">CSV, XLS, JSON · max 5MB</p>
-                {uploadedFile && (
-                  <p className="text-xs text-green-600 font-semibold mt-2">✓ {uploadedFile}</p>
+                {isProcessing ? (
+                  <div className="animate-pulse">
+                    <Sparkles size={24} className="mx-auto text-[#efa3a0] mb-2" />
+                    <p className="text-sm font-bold text-[#493129]">AI is reading form...</p>
+                    <p className="text-xs text-gray-400 mt-1">Extracting skills & location</p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload size={24} className="mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-400 font-['Caveat'] text-base">drop paper form here</p>
+                    <p className="text-xs text-gray-300 mt-1">PNG, JPG · max 5MB</p>
+                  </>
+                )}
+                
+                {uploadedFile && !isProcessing && (
+                  <p className="text-xs text-gray-600 font-semibold mt-2">{uploadedFile}</p>
+                )}
+                {ocrResult && (
+                  <p className={`text-xs font-semibold mt-2 ${ocrResult.includes('Success') ? 'text-green-600' : 'text-red-500'}`}>
+                    {ocrResult}
+                  </p>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx,.json" className="hidden"
-                onChange={e => setUploadedFile(e.target.files[0]?.name)} />
-              <button className="btn-sketch w-full mt-3 py-2 text-sm font-bold bg-[#493129] text-white"
-                onClick={() => fileRef.current.click()}>
-                Choose file
+              <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={handleDrop} />
+              <button className="btn-sketch w-full mt-3 py-2 text-sm font-bold bg-[#493129] text-white disabled:opacity-50"
+                onClick={() => fileRef.current.click()} disabled={isProcessing}>
+                {isProcessing ? 'Processing...' : 'Upload Form Image'}
               </button>
             </div>
 

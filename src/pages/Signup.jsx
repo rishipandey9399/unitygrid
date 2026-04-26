@@ -9,12 +9,62 @@ export default function Signup({ onLogin }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  
+  // Step 2 states
+  const [step, setStep] = useState(1)
+  const [skills, setSkills] = useState('')
+  const [area, setArea] = useState('')
+  const [preferences, setPreferences] = useState('')
 
-  const handleSubmit = (e) => {
+  // NGO Step 2 states
+  const [ngoName, setNgoName] = useState('')
+  const [ngoRegId, setNgoRegId] = useState('')
+  const [ngoDetails, setNgoDetails] = useState('')
+
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // Mock signup — just log them in with the chosen role
-    onLogin(role === 'volunteer' ? 'volunteer' : 'ngo')
-    navigate(role === 'volunteer' ? '/volunteer' : '/ngo')
+    setError('')
+    if (step === 1) {
+      setStep(2)
+      return
+    }
+
+    try {
+      // 1. Register
+      const fullSkills = preferences ? `${skills}. Preferred drives: ${preferences}` : skills
+      const regRes = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name, email, password, role, 
+          skills: fullSkills, area,
+          ngo_name: ngoName, ngo_reg_id: ngoRegId, ngo_details: ngoDetails
+        })
+      })
+      const regData = await regRes.json()
+      
+      if (!regRes.ok) {
+        setError(regData.error || 'Registration failed.')
+        return
+      }
+
+      // 2. Auto-login after registration
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      const loginData = await loginRes.json()
+      
+      if (loginRes.ok) {
+        onLogin(loginData)
+        navigate(`/${loginData.user.role}`)
+      }
+    } catch (err) {
+      setError('Failed to connect to server.')
+    }
   }
 
   return (
@@ -74,52 +124,151 @@ export default function Signup({ onLogin }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Name */}
-            <div>
-              <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">FULL NAME</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
-                placeholder="Jane Doe"
-              />
-            </div>
+            {step === 1 ? (
+              <>
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">FULL NAME</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="Jane Doe"
+                  />
+                </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">EMAIL</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
-                placeholder="you@example.com"
-              />
-            </div>
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">EMAIL</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="you@example.com"
+                  />
+                </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">PASSWORD</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
-                placeholder="••••••••"
-              />
-            </div>
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">PASSWORD</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </>
+            ) : role === 'volunteer' ? (
+              <>
+                {/* Skills */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">SKILLS / EXPERTISE</label>
+                  <input
+                    type="text"
+                    value={skills}
+                    onChange={(e) => setSkills(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="e.g. Teaching, Cooking, Medical..."
+                  />
+                </div>
+
+                {/* Area */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">NEIGHBORHOOD / AREA</label>
+                  <input
+                    type="text"
+                    value={area}
+                    onChange={(e) => setArea(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="e.g. Indiranagar, Bangalore"
+                  />
+                </div>
+
+                {/* Preferences */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">WHAT KIND OF DRIVES DO YOU PREFER?</label>
+                  <textarea
+                    value={preferences}
+                    onChange={(e) => setPreferences(e.target.value)}
+                    required
+                    rows={2}
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400 resize-none"
+                    placeholder="e.g. I prefer weekend drives focusing on children's education."
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* NGO Name */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">NGO NAME</label>
+                  <input
+                    type="text"
+                    value={ngoName}
+                    onChange={(e) => setNgoName(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="e.g. GreenRoots Trust"
+                  />
+                </div>
+
+                {/* Registration ID */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">REGISTRATION ID</label>
+                  <input
+                    type="text"
+                    value={ngoRegId}
+                    onChange={(e) => setNgoRegId(e.target.value)}
+                    required
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400"
+                    placeholder="e.g. 12345678"
+                  />
+                </div>
+
+                {/* Details */}
+                <div>
+                  <label className="block text-xs font-bold tracking-widest text-[#8b597b] mb-2">NGO DETAILS</label>
+                  <textarea
+                    value={ngoDetails}
+                    onChange={(e) => setNgoDetails(e.target.value)}
+                    required
+                    rows={2}
+                    className="w-full bg-transparent border-b-2 border-[#493129]/30 py-2 text-[#493129] text-sm outline-none focus:border-[#8b597b] transition-colors placeholder-gray-400 resize-none"
+                    placeholder="Brief description of the NGO's mission."
+                  />
+                </div>
+              </>
+            )}
+
+            {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
 
             {/* Submit */}
-            <button
-              type="submit"
-              className="btn-sketch px-6 py-2.5 text-sm font-bold bg-[#493129] text-[#ffeedb] tracking-widest"
-            >
-              CREATE ACCOUNT
-            </button>
+            <div className="flex gap-4">
+              {step === 2 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="btn-sketch px-6 py-2.5 text-sm font-bold bg-transparent border-2 border-[#493129] text-[#493129] tracking-widest flex-1"
+                >
+                  BACK
+                </button>
+              )}
+              <button
+                type="submit"
+                className="btn-sketch px-6 py-2.5 text-sm font-bold bg-[#493129] text-[#ffeedb] tracking-widest flex-1"
+              >
+                {step === 1 ? 'NEXT' : 'CREATE ACCOUNT'}
+              </button>
+            </div>
           </form>
         </div>
       </div>

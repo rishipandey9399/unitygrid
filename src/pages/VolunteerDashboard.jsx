@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   Clock, Heart, Award, MapPin, Calendar, Users,
   Star, Download, Bookmark, CheckCircle, ChevronRight,
-  Sparkles, Target
+  Sparkles, Target, Settings
 } from 'lucide-react'
 
 // ── Scroll fade-in hook ───────────────────────────────────────────────────────
@@ -24,86 +24,7 @@ function useFadeIn() {
     return () => observer.disconnect()
   }, [])
 }
-
-// ── Mock data ────────────────────────────────────────────────────────────────
-const volunteer = {
-  name: 'Aanya Patel',
-  initials: 'AP',
-  hours: 142,
-  drives: 18,
-  badges: 3,
-  skills: ['Teaching', 'Translation', 'Tech'],
-  availability: ['22\nApr Wed', '25\nApr Sat', '29\nApr Wed', '2\nMay Sat'],
-  nextBadge: { label: '200 Hour Club', hoursLeft: 58, progress: 71 },
-  earnedBadges: [
-    { label: 'First 100 hrs', year: 2026 },
-    { label: 'Storyteller', year: 2025 },
-    { label: 'Crisis Responder', year: 2024 },
-  ],
-}
-
-const allDrives = [
-  {
-    id: 1,
-    org: 'AKSHARAVANA TRUST',
-    title: 'Saturday Reading Circle',
-    desc: 'Read with kids at the community library. Hindi/English/Kannada welcome.',
-    tags: ['Teaching', 'Translation'],
-    location: 'Indiranagar',
-    distance: '0.6 km',
-    date: 'Sat, Apr 25',
-    free: true,
-    slots: '7/12',
-    skillsMatched: 2,
-    proximity: 'very close',
-    match: 97,
-  },
-  {
-    id: 2,
-    org: 'BYTEBRIDGE',
-    title: 'Code with Teens',
-    desc: 'Intro to Python session for high-schoolers from govt. schools.',
-    tags: ['Tech', 'Teaching'],
-    location: 'Domlur',
-    distance: '5.1 km',
-    date: 'Wed, Apr 22',
-    free: true,
-    slots: '3/8',
-    skillsMatched: 2,
-    proximity: 'nearby',
-    match: 75,
-  },
-  {
-    id: 3,
-    org: 'KARUNA HEALTH',
-    title: 'Mobile Health Camp',
-    desc: 'Set up a free check-up camp. Doctors, nurses, and runners needed.',
-    tags: ['Medical', 'Logistics'],
-    location: 'Hebbal',
-    distance: '5.1 km',
-    date: 'Wed, Apr 29',
-    free: true,
-    slots: '11/20',
-    skillsMatched: 0,
-    proximity: 'nearby',
-    match: 40,
-  },
-  {
-    id: 4,
-    org: 'ANNAPURNA COLLECTIVE',
-    title: 'Community Kitchen',
-    desc: 'Cook and serve 300 meals at the weekend kitchen.',
-    tags: ['Cooking', 'Logistics'],
-    location: 'Jayanagar',
-    distance: '2.9 km',
-    date: 'Sun, Apr 26',
-    free: false,
-    slots: '9/15',
-    skillsMatched: 0,
-    proximity: 'very close',
-    match: 36,
-  },
-]
+// Global mock data removed in favor of API fetching
 
 // ── Match ring ───────────────────────────────────────────────────────────────
 function MatchRing({ score }) {
@@ -165,8 +86,8 @@ function DriveCard({ drive, saved, onSave }) {
           >
             {saved ? '✕ Unsave' : '🔖 Save'}
           </button>
-          <button className="btn-sketch px-4 py-1.5 text-sm font-semibold bg-[#efa3a0] text-white">
-            Sign up
+          <button onClick={() => handleEnroll(drive.id)} className="btn-sketch px-4 py-1.5 text-sm font-semibold bg-[#efa3a0] text-white">
+            {saved ? 'Unenroll' : 'Sign up'}
           </button>
         </div>
       </div>
@@ -177,10 +98,119 @@ function DriveCard({ drive, saved, onSave }) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function VolunteerDashboard() {
   const [savedIds, setSavedIds] = useState([])
+  const [isRegistered, setIsRegistered] = useState(false)
+  const [registering, setRegistering] = useState(false)
+  const [allDrives, setAllDrives] = useState([])
+  
+  const [volunteer, setVolunteer] = useState({
+    name: '', initials: '', hours: 0, drives: 0, badges: 0,
+    skills: ['Community', 'Helping'], availability: ['Soon'],
+    nextBadge: { label: 'Bronze', hoursLeft: 50, progress: 0 },
+    earnedBadges: []
+  })
+  
   useFadeIn()
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const userStr = localStorage.getItem('user')
+        if (!userStr) return
+        const user = JSON.parse(userStr)
+        
+        // Fetch stats
+        const statRes = await fetch('/api/volunteer/stats', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        if (statRes.ok) {
+          const statData = await statRes.json()
+          setVolunteer(prev => ({
+            ...prev,
+            name: user.name,
+            initials: user.name.substring(0,2).toUpperCase(),
+            hours: statData.hours,
+            drives: statData.drives,
+            nextBadge: { label: 'Next Level', hoursLeft: Math.max(50 - statData.hours, 0), progress: Math.min((statData.hours/50)*100, 100) }
+          }))
+          setSavedIds(statData.enrolled_ids || [])
+        }
+
+        // Fetch drives
+        const driveRes = await fetch('/api/drives')
+        if (driveRes.ok) {
+          const driveData = await driveRes.json()
+          const mapped = driveData.map(d => ({
+            id: d.id,
+            org: d.ngo_name || 'NGO',
+            title: d.title,
+            desc: d.description,
+            tags: d.tags,
+            location: d.location,
+            distance: 'Nearby',
+            date: d.date,
+            free: true,
+            slots: `${d.slots}/${d.total}`,
+            skillsMatched: 1,
+            proximity: 'local',
+            match: 85
+          }))
+          setAllDrives(mapped)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    fetchData()
+  }, [])
+
+  const handleEnroll = async (id) => {
+    try {
+      const res = await fetch(`/api/drives/${id}/join`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSavedIds(prev => data.enrolled ? [...prev, id] : prev.filter(x => x !== id))
+        // Re-fetch stats to update hours
+        const statRes = await fetch('/api/volunteer/stats', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        if (statRes.ok) {
+          const statData = await statRes.json()
+          setVolunteer(prev => ({ ...prev, hours: statData.hours, drives: statData.drives }))
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleRegisterAI = async () => {
+    setRegistering(true)
+    try {
+      await fetch('/api/register-volunteer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `vol_${Date.now()}`,
+          name: volunteer.name,
+          bio: `Hi, I am ${volunteer.name}. I am skilled in ${volunteer.skills.join(', ')}.`,
+          lat: 23.2324, // MP Nagar
+          lon: 77.4300,
+          area: 'MP Nagar'
+        })
+      })
+      setIsRegistered(true)
+    } catch (err) {
+      console.error("Failed to register", err)
+    } finally {
+      setRegistering(false)
+    }
+  }
+
   const toggleSave = (id) => {
-    setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    handleEnroll(id)
   }
 
   // Saved drives shown first, then rest sorted by match score
@@ -209,9 +239,22 @@ export default function VolunteerDashboard() {
                 across {volunteer.drives} drives. Skilled in {volunteer.skills.join(', ')}.
               </p>
             </div>
-            <button className="btn-sketch px-5 py-2 text-sm font-bold bg-[#493129] text-white flex items-center gap-2 shrink-0">
-              <Download size={15} /> Export CV
-            </button>
+            <div className="flex flex-col gap-2 shrink-0">
+              <button className="btn-sketch px-5 py-2 text-sm font-bold bg-[#493129] text-white flex items-center justify-center gap-2">
+                <Download size={15} /> Export CV
+              </button>
+              <button 
+                onClick={handleRegisterAI}
+                disabled={isRegistered || registering}
+                className={`btn-sketch px-5 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                  isRegistered 
+                    ? 'bg-green-100 text-green-700 border-green-300' 
+                    : 'bg-[#ffdec7] text-[#493129] border-[#efa3a0] hover:bg-[#efa3a0] hover:text-white'
+                }`}
+              >
+                {registering ? 'Registering...' : isRegistered ? <><CheckCircle size={15}/> Registered in AI</> : <><Sparkles size={15}/> Register to AI Matcher</>}
+              </button>
+            </div>
           </div>
 
           {/* Divider */}

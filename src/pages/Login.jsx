@@ -15,15 +15,27 @@ export default function Login({ onLogin }) {
     { email: 'superadmin@unitydrive.org', password: 'password123', role: 'admin' },
   ]
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    const found = DEMO_ACCOUNTS.find(a => a.email === email && a.password === password)
-    if (found) {
-      onLogin(found.role)
-      navigate(`/${found.role}`)
-    } else {
-      setError('Invalid credentials. Try a demo account below.')
+    
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        onLogin(data)
+        navigate(`/${data.user.role}`)
+      } else {
+        setError(data.error || 'Invalid credentials.')
+      }
+    } catch (err) {
+      setError('Failed to connect to server.')
     }
   }
 

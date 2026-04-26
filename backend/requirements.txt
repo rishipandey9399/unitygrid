@@ -1,0 +1,15 @@
+flask
+werkzeug
+langchain
+langchain-google-genai
+langgraph
+langchain-experimental
+pandas
+matplotlib
+pytesseract
+chromadb
+pillow
+streamlit
+gunicorn
+flask-sqlalchemy
+pyjwt

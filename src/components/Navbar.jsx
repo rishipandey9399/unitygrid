@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { label: 'NGOs', to: '/ngos' },
   { label: 'Drives', to: '/drives' },
   { label: 'Events', to: '/events' },
+  { label: 'AI Data', to: '/ai-analyzer' },
   { label: 'About', to: '/about' },
 ]
 
@@ -49,14 +50,24 @@ export default function Navbar({ userRole, onLogout }) {
           
           {/* Conditional Dashboard Link based on Role */}
           {userRole === 'ngo' && (
-            <Link to="/ngo" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/ngo' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
-              NGO Dashboard
-            </Link>
+            <>
+              <Link to="/ngo" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/ngo' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
+                NGO Dashboard
+              </Link>
+              <Link to="/ngo-volunteer-finder" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/ngo-volunteer-finder' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
+                Find Volunteers
+              </Link>
+            </>
           )}
           {userRole === 'volunteer' && (
-            <Link to="/volunteer" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/volunteer' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
-              Volunteer Dashboard
-            </Link>
+            <>
+              <Link to="/volunteer" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/volunteer' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
+                Volunteer Dashboard
+              </Link>
+              <Link to="/ai-matcher" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/ai-matcher' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
+                AI Matcher
+              </Link>
+            </>
           )}
           {userRole === 'admin' && (
             <Link to="/admin" className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${pathname === '/admin' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>
@@ -108,10 +119,16 @@ export default function Navbar({ userRole, onLogout }) {
           ))}
           {/* Conditional Dashboard Link */}
           {userRole === 'ngo' && (
-            <Link to="/ngo" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/ngo' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>NGO Dashboard</Link>
+            <>
+              <Link to="/ngo" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/ngo' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>NGO Dashboard</Link>
+              <Link to="/ngo-volunteer-finder" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/ngo-volunteer-finder' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>Find Volunteers</Link>
+            </>
           )}
           {userRole === 'volunteer' && (
-            <Link to="/volunteer" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/volunteer' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>Volunteer Dashboard</Link>
+            <>
+              <Link to="/volunteer" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/volunteer' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>Volunteer Dashboard</Link>
+              <Link to="/ai-matcher" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/ai-matcher' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>AI Matcher</Link>
+            </>
           )}
           {userRole === 'admin' && (
             <Link to="/admin" onClick={() => setOpen(false)} className={`px-3 py-2 rounded-lg font-medium text-sm ${pathname === '/admin' ? 'bg-[#493129] text-[#ffeedb]' : 'text-[#493129] hover:bg-[#ffdec7]'}`}>Admin Panel</Link>
