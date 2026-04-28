@@ -399,7 +399,23 @@ def complete_profile(current_user):
         )
 
     db.session.commit()
-    return jsonify({"success": True, "role": current_user.role})
+    
+    token = jwt.encode({
+        'user_id': current_user.id,
+        'role': current_user.role,
+        'exp': time.time() + (24 * 60 * 60)
+    }, app.config['SECRET_KEY'], algorithm="HS256")
+    
+    return jsonify({
+        "success": True, 
+        "token": token,
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "name": current_user.name,
+            "role": current_user.role
+        }
+    })
 
 # --- Drive Endpoints ---
 @app.route('/api/drives', methods=['GET'])

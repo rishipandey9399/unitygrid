@@ -87,6 +87,8 @@ export default function Signup({ onLogin }) {
       if (loginRes.ok) {
         onLogin(loginData)
         navigate(`/${loginData.user.role}`)
+      } else {
+        setError(loginData.error || 'Failed to log in after registration.')
       }
     } catch {
       setError('Failed to connect to server.')
@@ -121,7 +123,8 @@ export default function Signup({ onLogin }) {
         return
       }
 
-      navigate(`/${data.role}`)
+      onLogin(data)
+      navigate(`/${data.user.role}`)
     } catch {
       setError('Failed to connect to server.')
     } finally {
