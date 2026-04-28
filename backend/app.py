@@ -107,11 +107,18 @@ def chat():
         }
 
         for msg in messages:
-            # We don't need to send the user's initial message back
-            if msg.type == "ai" and msg.content:
-                response_data["messages"].append({"role": "ai", "content": msg.content})
+            # Extract content safely
+            content = msg.content
+            if isinstance(content, list):
+                # Handle cases where content is a list of parts (common in multi-modal models)
+                content = "".join([part.get("text", "") if isinstance(part, dict) else str(part) for part in content])
+            elif not isinstance(content, str):
+                content = str(content)
+
+            if msg.type == "ai" and content:
+                response_data["messages"].append({"role": "ai", "content": content})
             elif msg.type == "tool":
-                response_data["messages"].append({"role": "tool", "content": msg.content, "name": msg.name})
+                response_data["messages"].append({"role": "tool", "content": content, "name": msg.name})
             elif msg.type == "ai" and hasattr(msg, "tool_calls") and msg.tool_calls:
                 for tool_call in msg.tool_calls:
                     response_data["messages"].append({"role": "tool_call", "name": tool_call["name"], "args": tool_call["args"]})
@@ -119,6 +126,8 @@ def chat():
         return jsonify(response_data)
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()  # Shows real error in Cloud Run logs
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/image/<filename>')

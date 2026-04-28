@@ -43,7 +43,15 @@ export default function AiAnalyzer() {
         body: formData,
       })
 
-      if (!res.ok) throw new Error('Failed to analyze data')
+      if (!res.ok) {
+        // Try to get the real error from the response body
+        let errMsg = 'Failed to analyze data'
+        try {
+          const errData = await res.json()
+          errMsg = errData.error || errMsg
+        } catch (_) {}
+        throw new Error(errMsg)
+      }
       const data = await res.json()
       
       setMessages(prev => [...prev, ...(data.messages || [])])
@@ -56,6 +64,7 @@ export default function AiAnalyzer() {
     } finally {
       setLoading(false)
     }
+
   }
 
   return (
@@ -151,7 +160,9 @@ export default function AiAnalyzer() {
                     }`}>
                       {msg.role === 'tool_call' && <p className="font-bold text-gray-500 mb-1">🛠 Tool: {msg.name}</p>}
                       {msg.role === 'tool' && <p className="font-bold text-blue-500 mb-1">✅ Tool Output ({msg.name}):</p>}
-                      <div className="whitespace-pre-wrap">{msg.content || JSON.stringify(msg.args)}</div>
+                      <div className="whitespace-pre-wrap">
+                        {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content || msg.args)}
+                      </div>
                     </div>
                   ))}
                   {loading && (

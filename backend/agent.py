@@ -68,10 +68,14 @@ def register_volunteer_to_db(name: str, bio: str, area: str, lat: float, lon: fl
 # --- 3. AGENT INITIALIZATION ---
 
 # --- FIXED: Use ChatGoogleGenerativeAI for LangGraph compatibility ---
+_api_key = os.environ.get("GOOGLE_API_KEY")
+if not _api_key:
+    raise RuntimeError("GOOGLE_API_KEY environment variable is not set!")
+
 llm = ChatGoogleGenerativeAI(
     model="gemini-3-flash-preview",
     temperature=0.1,
-    google_api_key=os.environ["GOOGLE_API_KEY"]
+    google_api_key=_api_key
 )
 
 tools = [handwriting_ocr, data_analyst_python, register_volunteer_to_db]
