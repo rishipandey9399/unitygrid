@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -12,9 +14,7 @@ import time
 from matching import vol_collection
 
 # --- 1. CONFIGURATION ---
-# Use your actual key here
-if "GOOGLE_API_KEY" not in os.environ:
-    os.environ["GOOGLE_API_KEY"] = "AIzaSyAvLF28ohcjSTQOYEJmdvaoiA0EkDGxjy8"
+# GOOGLE_API_KEY is loaded from backend/.env via python-dotenv
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # --- 2. TOOL DEFINITIONS ---
@@ -30,8 +30,7 @@ def handwriting_ocr(image_path: str) -> str:
     
     try:
         img = Image.open(image_path)
-        # psm 6 assumes a single uniform block of text
-        text = pytesseract.image_to_string(img, config='--psm 6')
+        text = pytesseract.image_to_string(img, config='--psm 3')
         return text if text.strip() else "OCR complete, but no text detected."
     except Exception as e:
         return f"OCR Error: {e}"
@@ -84,28 +83,29 @@ def run_analysis_pipeline(image_file):
     print(f"--- Initiating Pipeline for: {image_file} ---")
     
     # Improved prompt to ensure the agent uses tools correctly
-    prompt = f"""
-    Target Image: {image_file}
-    
-    Act as a Senior Data Scientist. Perform the following end-to-end pipeline:
+    prompt = f"""Target Image: {image_file}
+    Act as a Lead Data Scientist. Execute a robust ETL and Visualization pipeline on: {image_file}
 
-    1. EXTRACTION: 
-       - Use 'handwriting_ocr' on '{image_file}'.
-       - Extract Name, Phone, Email, and Shift availability.
+### PHASE 1: INTELLIGENT EXTRACTION
+- Execute 'handwriting_ocr' on '{image_file}'.
+- Parse the raw OCR output into structured entities: [Name, Phone, Email, Shift].
+- CRITICAL: Handle OCR noise (e.g., '|' as 'I', '0' as 'O'). Apply logical heuristics to correct obvious misreads in emails and phone numbers.
 
-    2. DATA ENGINEERING:
-       - Use 'data_analyst_python' to convert the text into a Pandas DataFrame.
-       - Standardize columns to: ['Name', 'Phone', 'Email', 'Shift'].
-       - Save the cleaned DataFrame as 'volunteer_data.csv'.
+### PHASE 2: DATA ENGINEERING & PERSISTENCE
+- Utilize 'data_analyst_python' to:
+    a) Initialize a Pandas DataFrame with columns: ['Name', 'Phone', 'Email', 'Shift'].
+    b) Data Cleaning: Standardize phone numbers to (XXX) XXX-XXXX format. Lowercase all emails.
+    c) Validation: Drop any rows where both 'Name' and 'Email' are null.
+    d) Export: Save the final cleaned state as 'volunteer_data.csv'.
 
-    3. VISUALIZATION:
-       - Use 'data_analyst_python' to create a dashboard with two charts:
-         A) Bar Chart: Count of volunteers by Shift.
-         B) Pie Chart: Distribution of area codes from Phone numbers.
-       - Save the dashboard as 'volunteer_dashboard_v1.png'.
+### PHASE 3: STRATEGIC VISUALIZATION
+- Utilize 'data_analyst_python' to generate a dual-pane dashboard ('volunteer_dashboard_v1.png'):
+    a) Bar Chart: Distribution of 'Shift' availability (Sorted by frequency).
+    b) Pie Chart: 'Area Code' market share (Extract first 3 digits from 'Phone').
+    c) Styling: Use a professional color palette (e.g., 'seaborn-v0_8') and include clear titles/labels.
 
-    4. SUMMARY:
-       - Provide a brief confirmation and show the first 5 rows.
+PHASE 4: EXECUTIVE SUMMARY
+    - Provide a log, a Markdown table of the first 5 rows, and confirm file paths.
     """
     
     inputs = {"messages": [("user", prompt)]}

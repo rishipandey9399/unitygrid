@@ -1,0 +1,10 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+dist/
+backend/venv/
+backend/__pycache__/
+backend/instance/
+build_logs.txt
+*.md

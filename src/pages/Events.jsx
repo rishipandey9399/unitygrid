@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { Calendar, MapPin, Clock, Users, Tag, ChevronRight, Search, Filter } from 'lucide-react'
 
 // ── Scroll fade-in hook ───────────────────────────────────────────────────────
-function useFadeIn() {
+function useFadeIn(deps = []) {
   useEffect(() => {
-    const observe = () => {
-      const els = document.querySelectorAll('.fade-in-scroll')
+    // Small delay so the DOM has painted the new cards
+    const timer = setTimeout(() => {
+      const els = document.querySelectorAll('.fade-in-scroll:not(.fade-in-visible)')
+      if (!els.length) return
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
@@ -15,13 +17,14 @@ function useFadeIn() {
             }
           })
         },
-        { threshold: 0.1 }
+        { threshold: 0.05 }
       )
       els.forEach((el) => observer.observe(el))
       return () => observer.disconnect()
-    }
-    return observe()
-  }, [])
+    }, 50)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -39,7 +42,8 @@ export default function Events() {
   const [search, setSearch] = useState('')
   const [enrolledIds, setEnrolledIds] = useState([])
   const [loading, setLoading] = useState(true)
-  useFadeIn()
+  useFadeIn([events])
+
 
   const fetchEvents = async () => {
     try {
